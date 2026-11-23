@@ -1,0 +1,1161 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>黄金分割验证助手 · 课堂验算员</title>
+<script>
+  /* 首帧就把 16:9 缩放算好，避免加载瞬间的尺寸跳动 */
+  (function () {
+    var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    document.documentElement.style.setProperty('--s', s.toFixed(4));
+  })();
+</script>
+<style>
+  :root{
+    --paper:#eef4f8;
+    --card:#ffffff;
+    --ink:#16262f;
+    --muted:#5d7382;
+    --line:#d6e4ec;
+    --gold:#2c6b8f;
+    --gold-soft:#e6f1f7;
+    --green:#1d6b7a;
+    --green-soft:#e3f1f4;
+    --amber:#8b5c20;
+    --amber-soft:#fbf1e2;
+    --red:#a3443a;
+    --red-soft:#fbeae6;
+    --swatch:#c4d8e4;
+    --radius:16px;
+    --font:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
+    --math:"Cambria Math","Latin Modern Math","Times New Roman",Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;font-family:var(--font);color:var(--ink);overflow:hidden;
+    /* 留白处压暗，让 16:9 画布像投在幕布上的一块纸 */
+    background:
+      radial-gradient(1200px 620px at 50% 50%, #dbe7ef 0%, #cbdae5 45%, #b6c9d8 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- 固定 16:9 画布：1280×720 设计稿，等比缩放居中 ---------- */
+  .app{
+    position:fixed;left:50%;top:50%;
+    width:1280px;height:720px;
+    transform:translate(-50%,-50%) scale(var(--s,1));
+    transform-origin:center center;
+    display:grid;grid-template-columns:320px minmax(0,1fr);
+    gap:24px;padding:24px;
+    will-change:transform;
+  }
+
+  /* ---------- 左侧栏 ---------- */
+  .panel{display:flex;flex-direction:column;gap:14px;overflow:auto;padding-right:4px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .phi-mark{
+    width:44px;height:44px;flex:0 0 44px;border-radius:13px;
+    background:linear-gradient(150deg,#c4d8e4,#8ab2c9 60%,#4d7791);
+    color:#102734;display:grid;place-items:center;
+    font-family:var(--math);font-size:23px;font-style:italic;
+    box-shadow:0 6px 16px rgba(60,105,130,.26);
+  }
+  .brand h1{font-size:17px;margin:0;letter-spacing:.02em;font-weight:650}
+  .brand p{margin:2px 0 0;font-size:12px;color:var(--muted);letter-spacing:.03em}
+
+  .const-card{
+    background:linear-gradient(160deg,#1c3947,#122731);
+    color:#eaf3f8;border-radius:var(--radius);padding:15px 16px;
+    box-shadow:0 10px 24px rgba(24,42,34,.18);
+  }
+  .const-card h2{font-size:11px;letter-spacing:.18em;margin:0 0 10px;color:#a5c2d3;font-weight:600}
+  .const-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0}
+  .const-row + .const-row{border-top:1px solid rgba(255,255,255,.09)}
+  .const-row span{font-size:12px;color:#aec6d5}
+  .const-row b{font-family:var(--math);font-weight:500;font-size:13.5px;color:#d3e7f2;letter-spacing:.02em}
+  .const-foot{margin:10px 0 0;font-size:11.5px;line-height:1.6;color:#a2b9c7;font-family:var(--math)}
+
+  .block{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .block h3{margin:0 0 10px;font-size:12px;letter-spacing:.1em;color:var(--muted);font-weight:650}
+  .examples{display:grid;gap:7px}
+  .ex{
+    display:flex;align-items:center;gap:9px;width:100%;text-align:left;cursor:pointer;
+    background:#f7fbfd;border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);
+    transition:background .15s,border-color .15s,transform .1s;
+  }
+  .ex:hover{background:var(--gold-soft);border-color:#b9d6e6}
+  .ex:active{transform:translateY(1px)}
+  .ex i{
+    font-style:normal;flex:0 0 26px;height:20px;border-radius:6px;
+    background:#e6f1f7;color:#3f6880;display:grid;place-items:center;
+    font-size:10.5px;letter-spacing:.02em;
+  }
+  .ex code{font-family:var(--math);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  .rules{list-style:none;margin:0;padding:0;font-size:12px;color:#415560;line-height:1.5}
+  .rules li{display:flex;gap:8px;align-items:flex-start;padding:4.5px 0}
+  .dot{width:7px;height:7px;border-radius:50%;flex:0 0 7px;margin-top:6px}
+  .d1{background:var(--green)} .d2{background:#3f7c93} .d3{background:#bd8f45} .d4{background:var(--red)}
+  .rules b{font-family:var(--math);font-weight:600;color:var(--ink)}
+
+  /* ---------- 主区 ---------- */
+  .chat{
+    display:flex;flex-direction:column;min-width:0;
+    background:var(--card);border:1px solid var(--line);border-radius:20px;
+    box-shadow:0 16px 40px rgba(60,50,25,.07);overflow:hidden;
+  }
+  .chat-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:13px 18px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#ffffff,#fbfdfe);
+  }
+  .chat-head .who{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600}
+  .live{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px var(--green-soft)}
+  .chat-head .tag{font-size:11.5px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+  .clear{
+    background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;
+    font-family:inherit;font-size:11.5px;padding:4px 10px;cursor:pointer;
+  }
+  .clear:hover{color:var(--ink);border-color:#c8dae5}
+
+  .log{flex:1;overflow-y:auto;padding:20px 18px 8px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+  .log::-webkit-scrollbar{width:8px}
+  .log::-webkit-scrollbar-thumb{background:#d9e6ee;border-radius:8px}
+
+  .msg{display:flex;gap:10px;max-width:100%}
+  .msg.user{justify-content:flex-end}
+  .avatar{
+    width:30px;height:30px;flex:0 0 30px;border-radius:9px;display:grid;place-items:center;
+    font-family:var(--math);font-style:italic;font-size:15px;
+    background:linear-gradient(150deg,#5c93b3,#2c6b8f);color:#f7fbfe;
+    box-shadow:0 3px 8px rgba(140,97,24,.22);margin-top:2px;
+  }
+  .bubble{
+    background:linear-gradient(160deg,#1e3f4f,#152c38);color:#ecf4f9;
+    padding:10px 14px;border-radius:14px 14px 4px 14px;
+    font-size:15px;line-height:1.55;max-width:74%;word-break:break-word;
+  }
+  .bubble code{font-family:var(--math);font-size:14.5px;letter-spacing:.01em}
+
+  .card{
+    flex:1;min-width:0;background:#ffffff;border:1px solid var(--line);
+    border-radius:4px 14px 14px 14px;padding:14px 16px 15px;
+    box-shadow:0 4px 14px rgba(70,58,26,.05);
+  }
+  .card-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+  .card-head .label{font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:650}
+  .card-head .pill{font-size:11px;color:#3f6880;background:#eaf3f9;border-radius:999px;padding:2.5px 9px}
+
+  .eq-title{
+    font-family:var(--math);font-size:22px;text-align:center;letter-spacing:.02em;
+    padding:10px 8px 12px;color:#1c3138;
+  }
+  .eq-title i{font-style:italic}
+
+  .rows{display:grid;gap:0;border-top:1px solid #e3edf3}
+  .row{display:grid;grid-template-columns:82px minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid #eaf2f7;align-items:baseline}
+  .row .k{font-size:12px;color:var(--muted)}
+  .row .v{font-family:var(--math);font-size:15.5px;line-height:1.5;word-break:break-word}
+  .row .v small{font-family:var(--font);font-size:11.5px;color:var(--muted);margin-left:6px}
+
+  .verdict{
+    display:flex;align-items:flex-start;gap:9px;margin-top:12px;
+    padding:11px 13px;border-radius:11px;font-size:14px;line-height:1.55;
+  }
+  .verdict .mark{font-size:14px;line-height:1.4}
+  .verdict b{font-family:var(--math);font-weight:600}
+  .high{background:var(--green-soft);color:#17606f;border:1px solid #c3e0e6}
+  .ok{background:var(--green-soft);color:#17606f;border:1px solid #c3e0e6}
+  .near{background:var(--amber-soft);color:#82561c;border:1px solid #ecd9b6}
+  .bad{background:var(--red-soft);color:#8c3227;border:1px solid #eecfc8}
+  .neutral{background:#eef4f8;color:#4e6572;border:1px solid #d9e6ee}
+
+  .note{margin:10px 0 0;font-size:12.5px;line-height:1.65;color:#4d6370}
+  .note code{font-family:var(--math);font-size:13px;color:#243a44}
+
+  .tips{margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;line-height:1.6;color:#465b66}
+  .tips li{position:relative;padding-left:16px;margin:5px 0}
+  .tips li:before{content:"";position:absolute;left:2px;top:7px;width:5px;height:5px;border-radius:50%;background:var(--gold)}
+  .assume{margin:8px 0 0;font-size:12px;color:#6f8492;font-style:normal}
+
+  .bar-wrap{margin:2px 0 6px;padding:2px 0 0}
+  .bar-wrap svg{width:100%;height:auto;display:block}
+
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+  .chip{
+    background:#eef6fb;border:1px solid var(--line);border-radius:999px;
+    padding:5px 11px;font-family:inherit;font-size:12px;line-height:1.4;color:#45606f;cursor:pointer;
+    transition:background .15s,border-color .15s,color .15s;
+  }
+  .chip:hover{background:var(--gold-soft);border-color:#a9c9dd;color:#1f556e}
+
+  .composer{padding:12px 16px 8px;border-top:1px solid var(--line);background:#ffffff}
+  .field{display:flex;gap:9px;align-items:center}
+  .field input{
+    flex:1;min-width:0;border:1px solid var(--line);background:#f7fbfd;border-radius:12px;
+    padding:12px 14px;font-family:var(--math);font-size:15px;color:var(--ink);outline:none;
+    transition:border-color .15s,box-shadow .15s,background .15s;
+  }
+  .field input::placeholder{font-family:var(--font);font-size:13px;color:#93a7b4}
+  .field input:focus{border-color:#7fa9c2;background:#fbfdff;box-shadow:0 0 0 3px rgba(120,168,196,.30)}
+  .send{
+    flex:0 0 auto;border:0;border-radius:12px;padding:12px 20px;cursor:pointer;
+    background:linear-gradient(150deg,#224654,#17313d);color:#f0f7fa;
+    font-family:inherit;font-size:13.5px;letter-spacing:.06em;font-weight:600;
+    box-shadow:0 6px 14px rgba(26,44,36,.22);transition:transform .1s,box-shadow .15s;
+  }
+  .send:hover{box-shadow:0 8px 18px rgba(26,44,36,.26)}
+  .send:active{transform:translateY(1px)}
+  .foot{margin:8px 2px 0;font-size:11.5px;color:#8fa3b0;text-align:center;letter-spacing:.02em}
+
+  /* ---------- 字号与密度总控：1280×720 画布按 1:1 呈现，字再放大一档 ---------- */
+  .panel{gap:8px;padding-right:2px}
+  .brand{gap:10px}
+  .phi-mark{width:40px;height:40px;flex:0 0 40px;font-size:21px;border-radius:11px}
+  .brand h1{font-size:21px}
+  .brand p{font-size:12.5px;margin-top:3px}
+  .const-card{padding:11px 13px}
+  .const-card h2{font-size:11.5px;margin-bottom:6px}
+  .const-row{padding:3px 0}
+  .const-row span{font-size:13px}
+  .const-row b{font-size:16.5px}
+  .const-foot{font-size:12px;line-height:1.45;margin-top:4px}
+  .block{padding:11px 12px}
+  .block h3{font-size:12px;margin-bottom:7px}
+  .examples{gap:5px}
+  .ex{padding:5.5px 9px;gap:8px;font-size:14px}
+  .ex i{flex:0 0 28px;height:19px;font-size:11px}
+  .ex code{font-size:15px}
+  .rules{font-size:13.5px;line-height:1.4}
+  .rules li{padding:1.5px 0;gap:7px}
+  .chat-head .who{font-size:16px}
+  .chat-head .tag,.clear{font-size:13px}
+  .bubble{font-size:17px;line-height:1.55}
+  .bubble code{font-size:16px}
+  .card-head .label,.card-head .pill{font-size:12.5px}
+  .eq-title{font-size:27px}
+  .row .k{font-size:14px}
+  .row .v{font-size:18px}
+  .row .v small{font-size:13px}
+  .verdict{font-size:16px}
+  .verdict .mark{font-size:15.5px}
+  .note{font-size:15px;line-height:1.65}
+  .note code{font-size:15.5px}
+  .tips{font-size:15px;line-height:1.6}
+  .assume{font-size:13.5px}
+  .chip{font-size:13.5px;padding:6px 12px}
+  .field input{font-size:17.5px;padding:12px 15px}
+  .field input::placeholder{font-size:15px}
+  .send{font-size:16px;padding:12px 22px}
+  .foot{font-size:13px}
+
+  /* 画布固定 16:9 后不再做断点重排；窄屏靠整体等比缩小保持版面 */
+  @media print{
+    body{background:#fff}
+    .app{position:static;transform:none;width:100%;height:auto}
+  }
+</style>
+<meta name="AIGC" content="{&#34;AIGC&#34;:{&#34;Label&#34;:&#34;1&#34;,&#34;ContentProducer&#34;:&#34;001191340000711771143J00000&#34;,&#34;ProduceID&#34;:&#34;b8a18228562f7e6a2adab3fe34b31019f653cb3af070c0fb27d630ce91801997&#34;,&#34;ReservedCode1&#34;:&#34;&#34;,&#34;ContentPropagator&#34;:&#34;001191340000711771143J00000&#34;,&#34;PropagateID&#34;:&#34;b8a18228562f7e6a2adab3fe34b31019f653cb3af070c0fb27d630ce91801997&#34;,&#34;ReservedCode2&#34;:&#34;&#34;}}"/></head>
+<body>
+<div class="app">
+
+  <aside class="panel">
+    <div class="brand">
+      <div class="phi-mark">φ</div>
+      <div>
+        <h1>黄金分割验证助手</h1>
+        <p>课堂验算员 · 只验算，不代推导</p>
+      </div>
+    </div>
+
+    <section class="const-card">
+      <h2>核 心 常 量</h2>
+      <div class="const-row"><span>黄金比 φ</span><b>1.6180339887…</b></div>
+      <div class="const-row"><span>黄金分割比 1/φ</span><b>0.6180339887…</b></div>
+      <div class="const-row"><span>标准方程</span><b>x² − x − 1 = 0</b></div>
+      <p class="const-foot">φ = (1+√5)/2，1/φ = (√5−1)/2<br/>满足 φ² = φ + 1</p>
+    </section>
+
+    <section class="block">
+      <h3>试 一 试</h3>
+      <div class="examples">
+        <button class="ex" data-q="解方程 x²-x-1=0"><i>T01</i><code>x² − x − 1 = 0</code></button>
+        <button class="ex" data-q="AP=6.18，AB=10"><i>T02</i><code>AP=6.18，AB=10</code></button>
+        <button class="ex" data-q="AP=6.2，AB=10"><i>T03</i><code>AP=6.2，AB=10</code></button>
+        <button class="ex" data-q="AP=5，AB=8"><i>T04</i><code>AP=5，AB=8</code></button>
+        <button class="ex" data-q="AP=4，AB=10"><i>T05</i><code>AP=4，AB=10</code></button>
+        <button class="ex" data-q="AB=16，AP=10"><i>T06</i><code>AB=16，AP=10</code></button>
+      </div>
+    </section>
+
+    <section class="block">
+      <h3>判 定 标 准</h3>
+      <ul class="rules">
+        <li><span class="dot d1"></span><span>偏差 <b>≤ 0.005</b>　符合黄金比</span></li>
+        <li><span class="dot d2"></span><span>偏差 <b>≤ 0.02</b>　符合容差（接近）</span></li>
+        <li><span class="dot d3"></span><span>偏差 <b>≤ 0.05</b>　基本接近</span></li>
+        <li><span class="dot d4"></span><span>偏差 <b>&gt; 0.05</b>　触发纠错引导</span></li>
+      </ul>
+    </section>
+  </aside>
+
+  <main class="chat">
+    <div class="chat-head">
+      <div class="who"><span class="live"></span>验算员</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="tag">离线确定性计算</span>
+        <button class="clear" id="clear">清空</button>
+      </div>
+    </div>
+
+    <div class="log" id="log" aria-live="polite"></div>
+
+    <form class="composer" id="form" autocomplete="off">
+      <div class="field">
+        <input id="q" type="text" placeholder="输入方程或线段长度，例如：x²-x-1=0　/　AP=6.18，AB=10"/>
+        <button class="send" type="submit">验算</button>
+      </div>
+      <p class="foot">手算推导是根本，这里只负责检验结果。</p>
+    </form>
+  </main>
+</div>
+
+<script>
+/* ENGINE_INLINE_START —— 由 engine.js 内联，本页为单文件，无外部依赖 */
+/*!
+ * 黄金分割验证助手 · 核心引擎
+ * 纯函数实现，浏览器与 Node 双用：浏览器暴露 window.GoldenEngine，Node 走 module.exports。
+ * 设计原则：所有数值都走确定的数学公式，不做猜测；解析失败必须显式报错。
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && typeof module.exports === 'object') {
+    module.exports = factory();
+  } else {
+    root.GoldenEngine = factory();
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  var PHI = (1 + Math.sqrt(5)) / 2;       // 1.6180339887498949
+  var INV_PHI = (Math.sqrt(5) - 1) / 2;   // 0.6180339887498949
+
+  /* ---------------- 通用小工具 ---------------- */
+
+  function fmt(x, d) {
+    d = d == null ? 4 : d;
+    if (x == null || !isFinite(x)) return '—';
+    var s = Number(x).toFixed(d);
+    if (/^-0(\.0*)?$/.test(s)) s = s.slice(1);   // 消除 -0.0000
+    return s;
+  }
+
+  function gcd(a, b) {
+    a = Math.round(Math.abs(a));
+    b = Math.round(Math.abs(b));
+    while (b) { var t = a % b; a = b; b = t; }
+    return a || 1;
+  }
+
+  // 把 sqrt(n) 写成 k·sqrt(m)，n 为正整数，m 无平方因子
+  function simplifySqrt(n) {
+    n = Math.round(n);
+    if (n <= 0) return { k: 0, m: 1 };
+    var k = 1, m = n;
+    for (var i = 2; i * i <= m; i++) {
+      while (m % (i * i) === 0) { m /= i * i; k *= i; }
+    }
+    return { k: k, m: m };
+  }
+
+  function fracStr(num, den) {
+    if (den === 0) return '—';
+    if (den < 0) { num = -num; den = -den; }
+    var g = gcd(num, den);
+    num /= g; den /= g;
+    if (den === 1) return String(num);
+    return num + '/' + den;
+  }
+
+  /* ---------------- 输入归一化 ---------------- */
+
+  function normalize(input) {
+    return String(input == null ? '' : input)
+      .replace(/[\uFF10-\uFF19]/g, function (c) {      // 全角数字 → 半角
+        return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+      })
+      .replace(/\uFF1D/g, '=')                          // ＝
+      .replace(/[\uFF0C\u3001\uFF1B;\uFF5E]/g, ',')     // ，、；～
+      .replace(/\uFF08/g, '(').replace(/\uFF09/g, ')')  // （）
+      .replace(/[\u2212\u2013\u2014\uFF0D]/g, '-')      // − – — －
+      .replace(/\uFF0B/g, '+')                          // ＋
+      .replace(/[\u00D7\uFF0A\u2217]/g, '*')            // × ＊ ∗
+      .replace(/\u00B2/g, '^2')                         // ²
+      .replace(/[\uFF21-\uFF3A\uFF41-\uFF5A]/g, function (c) {   // 全角字母 → 半角
+        return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+      })
+      .replace(/[xX]/g, 'x')
+      .replace(/\s+/g, '')
+      .replace(/[。？?！!]+$/g, '');
+  }
+
+  /* ---------------- 多项式解析 ---------------- */
+
+  // 返回 [c0, c1, c2]，或 { error }
+  function parsePoly(src) {
+    if (!src) return { error: '表达式为空' };
+    var s = String(src).replace(/\*/g, '');
+    if (!/^[+-]/.test(s)) s = '+' + s;
+    var terms = s.match(/[+-][^+-]+/g);
+    if (!terms) return { error: '无法解析：' + src };
+
+    var coef = [0, 0, 0];
+    for (var i = 0; i < terms.length; i++) {
+      var t = terms[i];
+      var sign = t.charAt(0) === '-' ? -1 : 1;
+      var body = t.slice(1);
+      if (!body) return { error: '项不完整：' + t };
+
+      var power = 0, numStr = body;
+      var mPow = body.match(/x\^(\d+)$/);
+      var mVar = body.match(/x$/);
+      if (mPow) {
+        power = parseInt(mPow[1], 10);
+        numStr = body.slice(0, mPow.index);
+      } else if (mVar) {
+        power = 1;
+        numStr = body.slice(0, mVar.index);
+      }
+      if (power > 2) return { error: '只支持一元二次方程（最高次为 x²），收到 x^' + power };
+      if (numStr && !/^[-+]?\d*\.?\d+$/.test(numStr)) return { error: '无法识别的项：' + t };
+
+      var val = numStr === '' ? 1 : parseFloat(numStr);
+      coef[power] += sign * val;
+    }
+    return coef;
+  }
+
+  function prettyEq(a, b, c) {
+    var parts = [];
+    function push(v, unit) {
+      if (Math.abs(v) < 1e-12) return;
+      var abs = Math.abs(v);
+      var coef = (unit && Math.abs(abs - 1) < 1e-12) ? '' : String(Number(abs.toFixed(6)));
+      parts.push({ sign: v < 0 ? '-' : '+', text: coef + unit });
+    }
+    push(a, 'x\u00B2'); push(b, 'x'); push(c, '');
+    if (!parts.length) return '0 = 0';
+    var s = parts.map(function (p, i) {
+      return (i === 0 ? (p.sign === '-' ? '-' : '') : ' ' + p.sign + ' ') + p.text;
+    }).join('');
+    return s + ' = 0';
+  }
+
+  // 解析 "左边 = 右边" 形式的方程
+  function parseEquation(input) {
+    var s = normalize(input);
+    s = s.replace(/^(请|帮我|帮忙|能否|可以|麻烦)?(解|求解|算|计算|验证|检验|验算)(一下|下)?(这个)?(方程)?[：:]?/, '');
+    s = s.replace(/^(方程)?[：:]/, '');
+    if (!s) return { ok: false, reason: 'empty' };
+    if (s.indexOf('=') < 0) return { ok: false, reason: 'no-eq' };
+    var parts = s.split('=');
+    if (parts.length !== 2) return { ok: false, reason: 'no-eq' };
+    if (!/x/.test(parts[0]) && !/x/.test(parts[1])) return { ok: false, reason: 'no-x' };
+
+    var L = parsePoly(parts[0]);
+    var R = parsePoly(parts[1]);
+    if (L.error) return { ok: false, reason: 'parse', detail: L.error };
+    if (R.error) return { ok: false, reason: 'parse', detail: R.error };
+
+    var a = L[2] - R[2];
+    var b = L[1] - R[1];
+    var c = L[0] - R[0];
+    if (Math.abs(a) < 1e-12 && Math.abs(b) < 1e-12) {
+      return {
+        ok: false, reason: 'identity',
+        detail: Math.abs(c) < 1e-12 ? '该等式恒成立，不含待求的未知数。' : '该等式矛盾，不含待求的未知数。'
+      };
+    }
+    return { ok: true, a: a, b: b, c: c, text: prettyEq(a, b, c) };
+  }
+
+  /* ---------------- 一元二次求解 ---------------- */
+
+  function decimalsOf(v) {
+    var d = 0, x = Math.abs(v);
+    while (d < 6 && Math.abs(x - Math.round(x)) > 1e-9) { x *= 10; d++; }
+    return d;
+  }
+
+  // 系数化成整数，便于给出根式精确解；失败返回 null
+  function toIntegers(a, b, c) {
+    var k = Math.max(decimalsOf(a), decimalsOf(b), decimalsOf(c));
+    if (k > 4) return null;
+    var s = Math.pow(10, k);
+    var ai = Math.round(a * s), bi = Math.round(b * s), ci = Math.round(c * s);
+    if (Math.abs(ai - a * s) > 1e-6 || Math.abs(bi - b * s) > 1e-6 || Math.abs(ci - c * s) > 1e-6) return null;
+    return [ai, bi, ci];
+  }
+
+  function exactRoots(ai, bi, ci) {
+    var D = bi * bi - 4 * ai * ci;
+    if (D < 0) return null;
+    var s = simplifySqrt(D);
+    if (s.m === 1) {                                   // 有理根
+      return [fracStr(-bi + s.k, 2 * ai), fracStr(-bi - s.k, 2 * ai)];
+    }
+    var n0 = -bi, kk = s.k, den = 2 * ai;
+    if (den < 0) { n0 = -n0; den = -den; }
+    var g = gcd(gcd(n0, kk), den);
+    n0 /= g; kk /= g; den /= g;
+
+    function build(sign) {
+      var root = (kk === 1 ? '' : String(kk)) + '\u221A' + s.m;
+      var inner;
+      if (n0 === 0) inner = (sign > 0 ? '' : '-') + root;
+      else inner = n0 + (sign > 0 ? '+' : '-') + root;
+      return den === 1 ? inner : '(' + inner + ')/' + den;
+    }
+    return [build(+1), build(-1)];
+  }
+
+  function solveQuadratic(a, b, c) {
+    var text = prettyEq(a, b, c);
+
+    if (Math.abs(a) < 1e-12) {                        // 降级为一元一次
+      if (Math.abs(b) < 1e-12) return { kind: 'invalid', text: text, exact: [], approx: [] };
+      var x0 = -c / b;
+      return {
+        kind: 'linear', text: text, delta: null,
+        exact: [fracStr(-c, b)], approx: [x0], roots: [{ exact: fracStr(-c, b), approx: x0 }],
+        note: '这是一元一次方程（x² 项系数为 0），只有唯一解。'
+      };
+    }
+
+    var delta = b * b - 4 * a * c;
+    var out = { text: text, delta: delta };
+
+    if (delta < -1e-12) {
+      out.kind = 'none';
+      out.exact = []; out.approx = []; out.roots = [];
+      out.note = '判别式 Δ = ' + fmt(delta) + ' < 0，方程没有实数根。';
+      return out;
+    }
+
+    var ints = toIntegers(a, b, c);
+    var exact = ints ? exactRoots(ints[0], ints[1], ints[2]) : null;
+    var sq = Math.sqrt(delta);
+
+    var approx;
+    if (delta < 1e-12) {                               // 两个相等实根
+      var xd = -b / (2 * a);
+      approx = [xd, xd];
+      out.kind = 'double';
+    } else {
+      var q = -0.5 * (b + (b >= 0 ? sq : -sq));        // 数值稳定的求根写法
+      var r1 = q / a;
+      var r2 = Math.abs(q) < 1e-15 ? r1 : c / q;
+      approx = [r1, r2];
+      if (approx[0] < approx[1]) approx = [approx[1], approx[0]];   // 正根在前
+      out.kind = 'two';
+    }
+
+    // 精确式与近似值对齐：用“+√”式与“-√”式的数值判断先后
+    if (exact) {
+      if (delta < 1e-12) {
+        exact = [exact[0], exact[0]];
+      } else {
+        var plusVal = (-b + sq) / (2 * a);
+        var minusVal = (-b - sq) / (2 * a);
+        exact = plusVal >= minusVal ? [exact[0], exact[1]] : [exact[1], exact[0]];
+      }
+    }
+
+    out.exact = exact || [];
+    out.approx = approx;
+    out.roots = approx.map(function (v, i) {
+      return { exact: exact ? exact[i] : null, approx: v };
+    });
+    return out;
+  }
+
+  /* ---------------- 与黄金比的关系判定 ---------------- */
+
+  function goldenForm(a, b, c) {
+    if (Math.abs(a) < 1e-12) return { kind: 'none', k: null, label: null };
+    var p = b / a, q = c / a, eps = 1e-6;
+    function near(u, v) { return Math.abs(u - v) <= eps * Math.max(1, Math.abs(v)); }
+
+    if (near(p, -1) && near(q, -1)) {
+      return { kind: 'phi', k: 1, label: 'x\u00B2 - x - 1 = 0（黄金比方程）' };
+    }
+    if (near(p, 1) && near(q, -1)) {
+      return { kind: 'invphi', k: 1, label: 'x\u00B2 + x - 1 = 0（黄金分割比方程）' };
+    }
+    if (p < 0) {
+      var k1 = -p;
+      if (near(q, -k1 * k1)) {
+        return {
+          kind: 'phi_scaled', k: k1,
+          label: 'x\u00B2 - ' + fmt(k1) + 'x - ' + fmt(k1 * k1) + ' = 0（全段长 ' + fmt(k1) + ' 时的黄金比方程）'
+        };
+      }
+    }
+    if (p > 0) {
+      var k2 = p;
+      if (near(q, -k2 * k2)) {
+        return {
+          kind: 'invphi_scaled', k: k2,
+          label: 'x\u00B2 + ' + fmt(k2) + 'x - ' + fmt(k2 * k2) + ' = 0（全段长 ' + fmt(k2) + ' 时的黄金分割方程）'
+        };
+      }
+    }
+    return { kind: 'none', k: null, label: null };
+  }
+
+  /* ---------------- 线段比值验证 ---------------- */
+
+  function checkGoldenRatio(longSeg, totalSeg) {
+    if (!(totalSeg > 0) || !(longSeg > 0)) {
+      return { error: '长度必须是正数，请检查输入。', longSeg: longSeg, totalSeg: totalSeg };
+    }
+    if (longSeg >= totalSeg) {
+      return {
+        error: '较长段（' + fmt(longSeg) + '）不能大于或等于全段（' + fmt(totalSeg) + '），请确认两段数值是否填反。',
+        longSeg: longSeg, totalSeg: totalSeg
+      };
+    }
+
+    var out = { longSeg: longSeg, totalSeg: totalSeg };
+    var ratio = longSeg / totalSeg;
+    var inv = totalSeg / longSeg;
+    var pb = totalSeg - longSeg;
+
+    out.shortSeg = pb;
+    out.ap_over_ab = ratio;
+    out.ab_over_ap = inv;
+    out.ap_over_pb = pb > 0 ? longSeg / pb : null;
+    out.dev_0618 = Math.abs(ratio - INV_PHI);
+    out.dev_1618 = Math.abs(inv - PHI);
+    out.expected_long = totalSeg * INV_PHI;
+    out.expected_short = totalSeg - out.expected_long;
+    out.ratio_percent = ratio * 100;
+
+    var d = out.dev_0618;
+    if (d <= 0.005) { out.verdict = '符合黄金比'; out.level = 'high'; }
+    else if (d <= 0.02) { out.verdict = '符合黄金比（接近）'; out.level = 'ok'; }
+    else if (d <= 0.05) { out.verdict = '基本接近黄金比'; out.level = 'near'; }
+    else { out.verdict = '存在偏差，建议检查'; out.level = 'bad'; }
+
+    var tips = [];
+    if (ratio < 0.5) {
+      tips.push('较长段应大于全段的一半（应 > ' + fmt(totalSeg / 2) + '），你输入的两段可能填反了：较长段是 AP，全段是 AB。');
+    }
+    if (out.level === 'near' || out.level === 'bad') {
+      tips.push('较长段是否从线段的一个端点开始，量到分割点结束？起点不同会带来系统偏差。');
+      tips.push('读数时是否对准了分割点？');
+      tips.push('确认数值对应关系：AP 是较长段，AB 是全段，且 AB = AP + PB。');
+      tips.push('若这段线确为黄金分割，较长段应约为 ' + fmt(out.expected_long) + '，你量到的是 ' + fmt(longSeg) + '。');
+    }
+    out.suggestions = tips;
+    return out;
+  }
+
+  /* ---------------- 自然语言输入解析 ---------------- */
+
+  function looksLikeEquation(s) {
+    return s.indexOf('=') >= 0 && /x/.test(s) && !/(ap|ab|pb)/i.test(s);
+  }
+
+  // 从自然语言里抽取线段长度
+  function parseSegments(input) {
+    var s = normalize(input);
+    var NUM = '(-?\\d+(?:\\.\\d+)?)';
+    function pick(labels) {
+      for (var i = 0; i < labels.length; i++) {
+        var re = new RegExp(labels[i] + '\\s*[=:：]?\\s*' + NUM, 'i');
+        var m = s.match(re);
+        if (m) return parseFloat(m[1]);
+      }
+      return null;
+    }
+    var AP = pick(['较长段', '长段', '长边', '较长', 'ap']);
+    var PB = pick(['较短段', '短段', '短边', '较短', 'pb']);
+    var AB = pick(['全段', '总长', '全长', '整段', '总段', 'ab']);
+
+    var assumption = null;
+
+    if (AP != null && AB != null) {
+      /* 直接可算 */
+    } else if (AP != null && PB != null) {
+      AB = AP + PB;
+      assumption = '由 AP + PB 推出全段 AB = ' + fmt(AB);
+    } else if (AB != null && PB != null) {
+      AP = AB - PB;
+      assumption = '由 AB − PB 推出较长段 AP = ' + fmt(AP);
+    } else if (AP != null) {
+      return { error: '还缺一个长度：请再给出全段 AB（约 ' + fmt(AP * PHI) + '）或较短段 PB。' };
+    } else {
+      // 无名称：取原始输入里的数字（保留空格分隔的信息）
+      var nums = (String(input).match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+      if (nums.length === 2) {
+        // 全段一定更长，所以两个数里大的是 AB，小的是较长段 AP
+        AP = Math.min(nums[0], nums[1]);
+        AB = Math.max(nums[0], nums[1]);
+        if (AP === AB) return { error: '两个数值相同，无法构成黄金分割（较长段应小于全段）。' };
+        assumption = '未标注名称，按「较长段 = ' + fmt(AP) + '，全段 = ' + fmt(AB) + '」理解。';
+      } else if (nums.length >= 3) {
+        var sorted = nums.slice().sort(function (x, y) { return y - x; });
+        if (Math.abs(sorted[1] + sorted[2] - sorted[0]) < 1e-9) {
+          AB = sorted[0];
+          AP = sorted[1];
+          assumption = '未标注名称，按「AB = ' + fmt(AB) + ' = AP + PB」推得较长段 AP = ' + fmt(AP) + '。';
+        } else {
+          return { error: '数值较多且没有名称，无法判断哪段是较长段。请按「AP=…，AB=…」的格式再说一次。' };
+        }
+      } else {
+        return { error: '需要两个长度（较长段、全段），例如：AP=6.18，AB=10。' };
+      }
+    }
+    return { AP: AP, AB: AB, PB: AB - AP, assumption: assumption };
+  }
+
+  /* ---------------- 概念问答库（与 agent.py 共用同一份数据） ---------------- */
+  /* FAQ_START */
+  var FAQ = [
+    {
+      "id": "what",
+      "q": "什么是黄金分割？",
+      "kw": ["什么是黄金分割", "黄金分割是什么", "黄金分割的定义", "什么叫黄金分割", "黄金分割是啥", "定义"],
+      "a": "把一条线段 AB 分成两段：AP（较长）与 PB。如果 <b>AP/AB = PB/AP ≈ 0.618</b>，就说点 P 把线段 AB 黄金分割，P 叫黄金分割点。<br>换个说法：较长段是全段的 0.618 倍，同时是较短段的 1.618 倍。本章所有验算都从这一条出发。"
+    },
+    {
+      "id": "relation",
+      "q": "0.618 和 1.618 是什么关系？",
+      "kw": ["0.618 和 1.618", "0.618和1.618", "黄金分割比", "关系", "互为倒数", "倒数", "φ 怎么算", "两个数"],
+      "a": "同一个比例的两面：φ = (1+√5)/2 ≈ 1.6180339887，1/φ = (√5−1)/2 ≈ 0.6180339887，互为倒数，且 φ² = φ + 1。<br>判读口诀：<b>整体 ÷ 部分 = 1.618，部分 ÷ 整体 = 0.618</b>。你算出的数落在哪一侧，取决于分子分母谁大。"
+    },
+    {
+      "id": "why-eq",
+      "q": "为什么会得到 x² − x − 1 = 0？",
+      "kw": ["为什么是二次方程", "方程怎么来的", "怎么得到方程", "x²-x-1", "x²+x-1", "推导", "为什么解方程", "为什么会出现"],
+      "a": "设 AB = 1，AP = x。黄金分割要求 <b>x / 1 = (1 − x) / x</b>，交叉相乘得 x² = 1 − x，即 <b>x² + x − 1 = 0</b>，正根 ≈ 0.618。<br>如果你设的是「整体比部分」x = AB/AP，方程就是 x² − x − 1 = 0，正根 ≈ 1.618。两个方程是同一件事的两种设法，不是写错。"
+    },
+    {
+      "id": "construct",
+      "q": "怎么尺规作图找黄金分割点？",
+      "kw": ["尺规作图", "尺规", "作图步骤", "作图", "怎么画", "找黄金分割点", "找分割点", "怎么找"],
+      "a": "1）已知线段 AB，过 B 作 AB 的垂线，在其中取 BC = AB/2；<br>2）连接 AC；<br>3）以 C 为圆心、CB 为半径画弧，交 AC 于 D；<br>4）以 A 为圆心、AD 为半径画弧，交 AB 于 P。<br>P 就是黄金分割点，AP/AB = (√5−1)/2 ≈ 0.618。"
+    },
+    {
+      "id": "beauty",
+      "q": "为什么黄金分割「看起来美」？",
+      "kw": ["为什么美", "看起来美", "觉得美", "好看", "审美", "美感", "有科学依据"],
+      "a": "有实验支持，但不宜说成定律：多数人对接近 1.618 的矩形略有偏好，差异又受文化、训练、个体影响。<br>数学上它确实特殊——φ 的连分数是 [1;1,1,1,…]，是「最不容易被有理数逼近」的数，所以按它分割的图形会不断自我复制、结构稳定。"
+    },
+    {
+      "id": "fib",
+      "q": "黄金分割和斐波那契数列什么关系？",
+      "kw": ["斐波那契", "数列", "1 1 2 3 5 8", "相邻两项", "兔子"],
+      "a": "相邻两项之比交替逼近：1/1、2/1、3/2、5/3、8/5、13/8…，其中 8/5 = 1.6、13/8 = 1.625、21/13 ≈ 1.6154，越来越接近 φ。<br>量不出 φ 时，用斐波那契数当「近似尺」很实用，比如 5:8、8:13。"
+    },
+    {
+      "id": "rect",
+      "q": "黄金矩形怎么画？切掉正方形为什么还是黄金矩形？",
+      "kw": ["黄金矩形", "长宽比", "切掉正方形", "自相似", "矩形"],
+      "a": "长宽比取 φ : 1（约 1.618 : 1）就是黄金矩形。<br>从它上面切掉一个边长为宽的正方形，剩下的小矩形长宽比是 1 : (φ − 1) = φ : 1，还是黄金矩形。这种「切掉一块还像原来」的自相似，是它视觉上耐看的原因。"
+    },
+    {
+      "id": "star",
+      "q": "五角星里的黄金比在哪？",
+      "kw": ["五角星", "正五边形", "对角线", "五星"],
+      "a": "正五边形里，对角线与边之比等于 φ。<br>五角星的每条对角线上，交点把它分成两段：长段 / 整段 ≈ 0.618，短段 / 长段 ≈ 0.618。徽章里用五角星，天然自带黄金比。"
+    },
+    {
+      "id": "badge",
+      "q": "徽章设计里怎么用黄金分割？",
+      "kw": ["徽章", "设计", "怎么用", "构图", "排版", "版面"],
+      "a": "三条可直接执行：<br>1）主视觉（图形或文字的重心）放在版面的 0.618 分割线上，而不是正中；<br>2）外框长宽比取 1 : 1.618 或 0.618 : 1；<br>3）留白与实体面积按 0.618 : 0.382 分配。<br>做完用本助手验算一遍，偏差 ≤ 0.02 就算成立。"
+    },
+    {
+      "id": "error",
+      "q": "我量出来偏差 0.03，算不算错？",
+      "kw": ["偏差", "误差", "算不算", "多少算合理", "测不准", "量不准"],
+      "a": "尺规测量的合理误差：10 cm 的线段上，±0.5 mm 的读数误差就相当于比例偏差约 0.005。<br>经验判据：偏差 ≤ 0.02 可接受；0.02–0.05 建议复测；> 0.05 基本可判定不是黄金分割。<br>提高精度：线段尽量量长（≥10 cm）、从端点起量、全程用同一把尺。"
+    },
+    {
+      "id": "irrational",
+      "q": "为什么 φ 是无理数？",
+      "kw": ["无理数", "为什么不能写成分数", "无限不循环", "有理数"],
+      "a": "φ = (1+√5)/2，√5 是无理数，所以 φ 也是。<br>也可反证：设 φ = p/q 为最简分数，由 φ² = φ + 1 得 p² = pq + q²，可推出 q 也能整除 p，与最简矛盾。<br>它的连分数 [1;1,1,1,…] 无限不循环，所以写不成有限小数。"
+    },
+    {
+      "id": "nature",
+      "q": "自然界和建筑里的黄金分割是真的吗？",
+      "kw": ["自然", "向日葵", "鹦鹉螺", "帕特农", "例子", "建筑", "植物"],
+      "a": "分三类看：<br><b>可靠的</b>：向日葵种子螺旋数常是斐波那契数（34/55、55/89），叶序角约 137.5°（= 360°/φ²）；<br><b>近似的</b>：鹦鹉螺是等角螺线，与 φ 只是接近，并不精确；<br><b>被夸大的</b>：帕特农神庙、蒙娜丽莎的「黄金矩形」多为后人叠加，原始测绘并不支持。<br>课堂举例时标注可靠性，比直接下结论更严谨。"
+    },
+    {
+      "id": "history",
+      "q": "黄金分割是谁发现的？",
+      "kw": ["谁发现", "谁发明", "谁提出", "历史", "由来", "起源", "欧几里得", "名字怎么来", "神圣比例"],
+      "a": "最早的系统定义出现在欧几里得《几何原本》（约公元前 300 年），当时叫「中外比」；文艺复兴时期帕乔利把它称作「神圣比例」。<br>符号 φ 通常认为是 20 世纪初 Mark Barr 用雕塑家菲狄亚斯（Pheidias）的首字母命名；「黄金分割」这个叫法则由 19 世纪德国数学家 Martin Ohm 普及。<br>别把它讲成「古希腊为美学而发明」——它的数学动机来自正五边形与比例理论。"
+    },
+    {
+      "id": "external",
+      "q": "一条线段有两个黄金分割点吗？",
+      "kw": ["两个黄金分割点", "两个分割点", "外分", "延长线", "唯一吗", "几个分割点"],
+      "a": "内分点把线段分成 0.618 : 0.382，就是课堂讲的那个点。<br>如果允许在延长线上取点，还有外分点：整体 : 较长段 = 1.618 : 1（较长段 = 1.618 × 原线段）。<br>尺规作图题通常只要求内分点。"
+    }
+  ];
+  /* FAQ_END */
+
+  function looksLikeQuestion(s) {
+    return /[?？]|什么|为什么|怎么|如何|是不是|有没有|区别|关系|原理|意思|证明|讲讲|介绍|举例|用途|意义|吗|呢/.test(s);
+  }
+
+  function hasLabels(s) {
+    return /(ap|ab|pb|较长段|长段|长边|较短段|短段|短边|全段|总长|全长|整段|总段)/i.test(s);
+  }
+
+  // 关键词打分命中，得分 = 命中关键词的字符数之和
+  function faqMatch(text) {
+    var s = normalize(text);
+    var best = null, bestScore = 0;
+    for (var i = 0; i < FAQ.length; i++) {
+      var f = FAQ[i], score = 0;
+      for (var j = 0; j < f.kw.length; j++) {
+        if (s.indexOf(normalize(f.kw[j])) >= 0) score += f.kw[j].length;
+      }
+      if (score > bestScore) { bestScore = score; best = { entry: f, score: score, index: i }; }
+    }
+    return bestScore >= 2 ? best : null;
+  }
+
+  return {
+    PHI: PHI,
+    INV_PHI: INV_PHI,
+    fmt: fmt,
+    normalize: normalize,
+    parsePoly: parsePoly,
+    prettyEq: prettyEq,
+    parseEquation: parseEquation,
+    solveQuadratic: solveQuadratic,
+    goldenForm: goldenForm,
+    checkGoldenRatio: checkGoldenRatio,
+    parseSegments: parseSegments,
+    looksLikeEquation: looksLikeEquation,
+    FAQ: FAQ,
+    faqMatch: faqMatch,
+    looksLikeQuestion: looksLikeQuestion,
+    hasLabels: hasLabels
+  };
+});
+/* ENGINE_INLINE_END */
+</script>
+<script>
+(function () {
+  'use strict';
+  var E = window.GoldenEngine;
+  var log = document.getElementById('log');
+  var form = document.getElementById('form');
+  var input = document.getElementById('q');
+
+  if (!E) {
+    log.innerHTML = '<div class="card" style="margin:20px">' +
+      '<div class="card-head"><span class="label">加 载 失 败</span></div>' +
+      '<p class="note" style="font-size:15px;margin-top:0">页面内的计算引擎没有跑起来，所以任何输入都没有回应。' +
+      '本页是单文件，正常情况下不该出现这条提示 —— 请重新下载 <b>index.html</b> 后再打开；' +
+      '若浏览器装了拦截脚本的插件，先暂停插件再试。</p></div>';
+    return;
+  }
+
+  /* ---------- 固定 16:9：1280×720 设计稿按视口等比缩放 ---------- */
+  var DESIGN_W = 1280, DESIGN_H = 720;
+  function fitCanvas() {
+    var vw = window.innerWidth || DESIGN_W;
+    var vh = window.innerHeight || DESIGN_H;
+    var s = Math.min(vw / DESIGN_W, vh / DESIGN_H);
+    document.documentElement.style.setProperty('--s', (Math.round(s * 1e4) / 1e4).toFixed(4));
+  }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('orientationchange', fitCanvas);
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ---------- 渲染工具 ---------- */
+
+  function agentShell(inner, label, pill) {
+    return '<div class="msg"><div class="avatar">&phi;</div><div class="card">' +
+      '<div class="card-head"><span class="label">' + (label || '验 算 结 果') + '</span>' +
+      (pill ? '<span class="pill">' + pill + '</span>' : '') + '</div>' + inner + '</div></div>';
+  }
+  function userBubble(text) {
+    return '<div class="msg user"><div class="bubble"><code>' + esc(text) + '</code></div></div>';
+  }
+  function push(html) {
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    log.appendChild(wrap.firstChild);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function equationCard(raw) {
+    var p = E.parseEquation(raw);
+    if (!p.ok) {
+      var msg = {
+        'no-eq': '这看起来不像方程。请写成完整形式，例如 <b>x² - x - 1 = 0</b>（等号两边都要有）。',
+        'no-x': '这个式子里没有未知数 x，无法求解。',
+        'parse': '解析失败：' + (p.detail || '请检查书写格式。'),
+        'identity': p.detail
+      }[p.reason] || '请检查输入。';
+      return agentShell('<p class="note" style="font-size:15px">' + msg + '</p>', '无 法 求 解', '格式');
+    }
+
+    var s = E.solveQuadratic(p.a, p.b, p.c);
+    var g = E.goldenForm(p.a, p.b, p.c);
+    var html = '<div class="eq-title">' + esc(s.text).replace(/x/g, '<i>x</i>') + '</div>';
+
+    var rows = '';
+    if (s.delta != null) {
+      rows += '<div class="row"><span class="k">判别式</span><span class="v">Δ = b² − 4ac = ' + E.fmt(s.delta, 4) + '</span></div>';
+    }
+    if (s.kind === 'none') {
+      rows += '<div class="row"><span class="k">实数根</span><span class="v">无</span></div>';
+    } else if (s.kind === 'linear') {
+      rows += '<div class="row"><span class="k">根</span><span class="v">x = ' + esc(s.roots[0].exact) + '<small>≈ ' + E.fmt(s.roots[0].approx) + '</small></span></div>';
+    } else if (s.kind === 'double') {
+      rows += '<div class="row"><span class="k">根（重根）</span><span class="v">x₁ = x₂ = ' + esc(s.exact[0]) + '<small>≈ ' + E.fmt(s.approx[0]) + '</small></span></div>';
+    } else {
+      rows += '<div class="row"><span class="k">精确根</span><span class="v">x₁ = ' + esc(s.exact[0] || '—') + '　x₂ = ' + esc(s.exact[1] || '—') + '</span></div>';
+      rows += '<div class="row"><span class="k">近似值</span><span class="v">' + E.fmt(s.approx[0]) + '　/　' + E.fmt(s.approx[1]) + '</span></div>';
+    }
+    html += '<div class="rows">' + rows + '</div>';
+
+    var verdict, note;
+    if (s.kind === 'none') {
+      verdict = '<div class="verdict neutral"><span class="mark">🔎</span><div>Δ &lt; 0，方程没有实数根，因此也不会有黄金比这样的正根。</div></div>';
+      note = '请检查一次项、常数项的符号是否写反 —— 黄金分割的两个标准方程 <code>x² − x − 1 = 0</code>、<code>x² + x − 1 = 0</code> 的判别式都是 5。';
+    } else if (s.kind === 'linear') {
+      verdict = '<div class="verdict neutral"><span class="mark">🔎</span><div>这是一元一次方程，只有一个解，不涉及黄金比的两个根。</div></div>';
+      note = '黄金分割的两种标准形式都是二次方程：<code>x² − x − 1 = 0</code>（正根 φ）与 <code>x² + x − 1 = 0</code>（正根 1/φ）。';
+    } else if (g.kind === 'phi') {
+      verdict = '<div class="verdict high"><span class="mark">📐</span><div>正根 <b>' + E.fmt(s.approx[0]) + '</b> 就是黄金比 <b>φ = (1+√5)/2</b>。</div></div>';
+      note = '负根 ' + E.fmt(s.approx[1], 4) + ' 是 −1/φ，作为线段长度要舍去。φ ≈ 1.6180339887，它的倒数 1/φ ≈ 0.6180339887 就是黄金分割比。';
+    } else if (g.kind === 'invphi') {
+      verdict = '<div class="verdict high"><span class="mark">📐</span><div>正根 <b>' + E.fmt(s.approx[0]) + '</b> 就是黄金分割比 <b>1/φ = (√5−1)/2</b>。</div></div>';
+      note = '由 r² + r = 1 得 r(1+r) = 1，所以 1/r = 1+r ≈ 1.6180，正是 φ。这个方程和 x² − x − 1 = 0 只差一次项符号。';
+    } else if (g.kind === 'phi_scaled' || g.kind === 'invphi_scaled') {
+      var k = g.k;
+      if (g.kind === 'phi_scaled') {
+        verdict = '<div class="verdict high"><span class="mark">📐</span><div>这是全段长 <b>' + E.fmt(k) + '</b> 时的黄金比方程，正根 = <b>' + E.fmt(k) + ' × φ ≈ ' + E.fmt(k * E.PHI) + '</b>。</div></div>';
+        note = '对应定义：设线段 AB = ' + E.fmt(k) + '，AP = x，则 x² = ' + E.fmt(k) + '(' + E.fmt(k) + ' − x)，即 x² + ' + E.fmt(k) + 'x − ' + E.fmt(k * k) + ' = 0；除以 x 后得到的就是上面的方程。';
+      } else {
+        verdict = '<div class="verdict high"><span class="mark">📐</span><div>这是全段长 <b>' + E.fmt(k) + '</b> 时的黄金分割方程，正根 = <b>' + E.fmt(k) + ' × 0.6180 ≈ ' + E.fmt(k * E.INV_PHI) + '</b>。</div></div>';
+        note = '它与你手上的 x² − x − 1 = 0 是同一段几何关系的两种写法：一个是比值（φ），一个是长度（1/φ）。';
+      }
+    } else {
+      var nearRoot = null;
+      for (var i = 0; i < s.approx.length; i++) {
+        if (Math.abs(s.approx[i] - E.PHI) < 5e-4) nearRoot = { v: s.approx[i], to: 'φ' };
+        if (Math.abs(s.approx[i] - E.INV_PHI) < 5e-4) nearRoot = { v: s.approx[i], to: '1/φ' };
+      }
+      if (nearRoot) {
+        verdict = '<div class="verdict near"><span class="mark">🔎</span><div>方程不是黄金分割的标准形式，但根 ' + E.fmt(nearRoot.v) + ' 与 <b>' + nearRoot.to + '</b> 很接近，值得核对系数。</div></div>';
+      } else {
+        verdict = '<div class="verdict neutral"><span class="mark">🔎</span><div>这不是黄金分割的标准方程，上面是它自己的解。</div></div>';
+      }
+      note = '若你在验证黄金分割，注意两种标准形式：<code>x² − x − 1 = 0</code> 的正根是 φ ≈ 1.6180；<code>x² + x − 1 = 0</code> 的正根是 1/φ ≈ 0.6180。';
+    }
+
+    if (s.note) note = s.note + ' ' + (note || '');
+    html += verdict + (note ? '<p class="note">' + note + '</p>' : '');
+    var pillText = { two: '二次方程 · 两实根', double: '二次方程 · 重根', linear: '一次方程', none: '无实根' }[s.kind] || '二次方程';
+    return agentShell(html, '方 程 求 解', pillText);
+  }
+
+  /* ---------- 线段可视化 ---------- */
+
+  function barSVG(c) {
+    var W = 620, x0 = 48, x1 = 588, y = 54, L = x1 - x0;
+    var splitX = x0 + L * c.ap_over_ab;
+    var goldX = x0 + L * E.INV_PHI;
+    var labelY = 26, subY = 86;
+
+    return '<div class="bar-wrap"><svg viewBox="0 0 ' + W + ' 110" role="img" aria-label="线段比例示意图">' +
+      '<defs><linearGradient id="g1" x1="0" x2="1"><stop offset="0" stop-color="#2c6b8f"/><stop offset="1" stop-color="#1c3947"/></linearGradient>' +
+      '<linearGradient id="g2" x1="0" x2="1"><stop offset="0" stop-color="#dce9f1"/><stop offset="1" stop-color="#c8dae5"/></linearGradient></defs>' +
+      // 全段底
+      '<rect x="' + x0 + '" y="' + (y - 6) + '" width="' + L + '" height="12" rx="6" fill="url(#g2)"/>' +
+      // AP 较长段
+      '<rect x="' + x0 + '" y="' + (y - 6) + '" width="' + (splitX - x0).toFixed(1) + '" height="12" rx="6" fill="url(#g1)"/>' +
+      // 黄金分割点虚线
+      '<line x1="' + goldX.toFixed(1) + '" y1="' + (y - 26) + '" x2="' + goldX.toFixed(1) + '" y2="' + (y + 30) + '" stroke="#3f7c9c" stroke-width="1.4" stroke-dasharray="5 4"/>' +
+      '<text x="' + goldX.toFixed(1) + '" y="' + (y - 32) + '" text-anchor="middle" font-size="11" fill="#2c6b8f" font-family="Cambria Math,Georgia,serif">61.8%</text>' +
+      // 实际分点
+      '<line x1="' + splitX.toFixed(1) + '" y1="' + (y - 16) + '" x2="' + splitX.toFixed(1) + '" y2="' + (y + 18) + '" stroke="#14262f" stroke-width="2.4"/>' +
+      // 端点
+      '<text x="' + (x0 - 14) + '" y="' + (y + 5) + '" font-size="13" fill="#45606f" font-family="Cambria Math,Georgia,serif" font-style="italic">A</text>' +
+      '<text x="' + (x1 + 8) + '" y="' + (y + 5) + '" font-size="13" fill="#45606f" font-family="Cambria Math,Georgia,serif" font-style="italic">B</text>' +
+      // 段长
+      '<text x="' + ((x0 + splitX) / 2).toFixed(1) + '" y="' + (y + 30) + '" text-anchor="middle" font-size="11.5" fill="#2c6b8f" font-family="Cambria Math,Georgia,serif">AP ' + E.fmt(c.longSeg) + '</text>' +
+      '<text x="' + ((splitX + x1) / 2).toFixed(1) + '" y="' + (y + 30) + '" text-anchor="middle" font-size="11.5" fill="#7d94a2" font-family="Cambria Math,Georgia,serif">PB ' + E.fmt(c.shortSeg) + '</text>' +
+      '</svg></div>';
+  }
+
+  function segmentCard(raw) {
+    var seg = E.parseSegments(raw);
+    if (seg.error) {
+      return agentShell('<p class="note" style="font-size:13px">' + esc(seg.error) + '</p>', '需 要 更 多 信 息', '输入');
+    }
+    var c = E.checkGoldenRatio(seg.AP, seg.AB);
+    if (c.error) {
+      return agentShell('<div class="verdict bad"><span class="mark">⚠️</span><div>' + esc(c.error) + '</div></div>', '数 据 有 疑 问', '提示');
+    }
+
+    var rows = '';
+    rows += '<div class="row"><span class="k">AP / AB</span><span class="v">' + E.fmt(c.longSeg) + ' / ' + E.fmt(c.totalSeg) + ' = ' + E.fmt(c.ap_over_ab) +
+      '<small>黄金分割比 0.6180</small></span></div>';
+    rows += '<div class="row"><span class="k">AB / AP</span><span class="v">' + E.fmt(c.totalSeg) + ' / ' + E.fmt(c.longSeg) + ' = ' + E.fmt(c.ab_over_ap) +
+      '<small>黄金比 φ = 1.6180</small></span></div>';
+    if (c.ap_over_pb != null) {
+      rows += '<div class="row"><span class="k">AP / PB</span><span class="v">' + E.fmt(c.longSeg) + ' / ' + E.fmt(c.shortSeg) + ' = ' + E.fmt(c.ap_over_pb) +
+        '<small>黄金比 φ = 1.6180</small></span></div>';
+    }
+    rows += '<div class="row"><span class="k">偏差</span><span class="v">|' + E.fmt(c.ap_over_ab) + ' − 0.6180| = ' + E.fmt(c.dev_0618) + '</span></div>';
+
+    var mark = { high: '✅', ok: '✅', near: '⚠️', bad: '⚠️' }[c.level];
+    var html = barSVG(c) + '<div class="rows">' + rows + '</div>';
+    html += '<div class="verdict ' + c.level + '"><span class="mark">' + mark + '</span><div>AP/AB ≈ <b>' + E.fmt(c.ap_over_ab) +
+      '</b>，偏差 <b>' + E.fmt(c.dev_0618) + '</b>，<b>' + esc(c.verdict) + '</b>。</div></div>';
+
+    if (c.level === 'high' || c.level === 'ok') {
+      var pct = c.dev_0618 * 100;
+      html += '<p class="note">较长段占全段的 ' + E.fmt(c.ratio_percent, 2) + '%，与黄金分割点 61.803% ' +
+        (pct < 0.005 ? '基本重合。' : '相差 ' + E.fmt(pct, 2) + ' 个百分点，可以认为满足黄金分割。') + '</p>';
+    }
+    if (c.suggestions && c.suggestions.length) {
+      html += '<ul class="tips">' + c.suggestions.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+    }
+    if (seg.assumption) html += '<p class="assume">' + esc(seg.assumption) + '</p>';
+
+    return agentShell(html, '比 值 验 证', c.level === 'bad' ? '需 复 查' : '已 比 对');
+  }
+
+  /* ---------- 概念问答 ---------- */
+
+  function chipHTML(list) {
+    return '<div class="chips">' + list.map(function (q) {
+      return '<button class="chip" data-q="' + esc(q) + '">' + esc(q) + '</button>';
+    }).join('') + '</div>';
+  }
+
+  function faqCard(f) {
+    var html = '<div class="eq-title" style="font-size:19px;text-align:left;padding:2px 0 8px;letter-spacing:0">' +
+      esc(f.entry.q) + '</div>' +
+      '<p class="note" style="margin-top:0;font-size:13.5px;line-height:1.8;color:#3d5460">' + f.entry.a + '</p>';
+
+    // 顺手给两个相邻话题，方便继续问
+    var rel = [];
+    for (var i = 1; i <= 2; i++) {
+      var j = (f.index + i * 4) % E.FAQ.length;
+      if (j !== f.index && rel.indexOf(E.FAQ[j].q) < 0) rel.push(E.FAQ[j].q);
+    }
+    html += chipHTML(rel);
+    return agentShell(html, '概 念 解 答', '知识点');
+  }
+
+  /* ---------- 帮助 ---------- */
+
+  function helpCard(extra) {
+    var html = '<p class="note" style="font-size:15px;margin-top:0">' + (extra || '我负责两件事：验算方程，验证线段比值。') + '</p>' +
+      '<div class="rows">' +
+      '<div class="row"><span class="k">解方程</span><span class="v">x² − x − 1 = 0<small>也认 x^2 - x - 1 = 0</small></span></div>' +
+      '<div class="row"><span class="k">验比值</span><span class="v">AP=6.18，AB=10<small>较长段 / 全段</small></span></div>' +
+      '<div class="row"><span class="k">三段也行</span><span class="v">AP=5，PB=3，AB=8</span></div>' +
+      '</div>' +
+      chipHTML(['什么是黄金分割？', '0.618 和 1.618 是什么关系？', '徽章设计里怎么用黄金分割？']);
+    return agentShell(html, '怎 么 用', '格式');
+  }
+
+  /* ---------- 路由 ---------- */
+
+  function answer(raw) {
+    var s = E.normalize(raw);
+    if (!s) return helpCard('先写点内容吧，比如 <b>x² - x - 1 = 0</b>、<b>AP=6.18，AB=10</b>，或者直接问概念。');
+    if (/^(帮助|help|\?|？|怎么用|使用说明)$/i.test(s)) return helpCard();
+
+    if (E.looksLikeEquation(s)) {                              // ① 方程
+      if (E.parseEquation(raw).ok) return equationCard(raw);
+      var fe = E.faqMatch(s);                                  // 像「为什么会出现 x²-x-1=0」这种问句
+      if (fe) return faqCard(fe);
+      return equationCard(raw);
+    }
+    if (E.hasLabels(s)) return segmentCard(raw);               // ② 带 AP/AB/PB 的比值
+
+    var f = E.faqMatch(s);
+    if (f) return faqCard(f);                                  // ③ 概念问答
+
+    if (/x/i.test(raw) && s.indexOf('=') < 0) {
+      return helpCard('看起来你想写方程，但少了等号。完整写法：<b>x² - x - 1 = 0</b>。');
+    }
+    if (/[0-9]/.test(s)) return segmentCard(raw);              // ④ 两个裸数字，按比值理解
+    return helpCard('这句话我没接住 —— 我只会验算、以及回答这张清单里的概念问题。');
+  }
+
+  /* ---------- 事件 ---------- */
+
+  function send(text) {
+    var t = (text || '').trim();
+    if (!t) { input.focus(); return; }
+    push(userBubble(t));
+    input.value = '';
+    setTimeout(function () {
+      push(answer(t));
+    }, 120);
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    send(input.value);
+  });
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-q]') : null;
+    if (!b) return;
+    e.preventDefault();
+    send(b.getAttribute('data-q'));
+  });
+
+  document.getElementById('clear').addEventListener('click', function () {
+    log.innerHTML = '';
+    welcome();
+    input.focus();
+  });
+
+  function welcome() {
+    var html = '<p class="note" style="font-size:15px;margin-top:0;line-height:1.7">' +
+      '我是这个探究活动的<b>验算员</b>。你手算出方程根或量出线段长度后，把结果发给我，我快速比对黄金比并给出判断。' +
+      '<br><span style="color:#728a98">推导仍然由你完成 —— 我只回答“这个结果对不对”。</span></p>' +
+      '<div class="rows">' +
+      '<div class="row"><span class="k">示例一</span><span class="v">解方程 x² − x − 1 = 0</span></div>' +
+      '<div class="row"><span class="k">示例二</span><span class="v">AP=6.18，AB=10</span></div>' +
+      '<div class="row"><span class="k">示例三</span><span class="v">AP=4，AB=10<small>看看偏差时会发生什么</small></span></div>' +
+      '</div>' +
+      '<p class="assume" style="margin-top:12px">也可以直接问概念：</p>' +
+      chipHTML(['什么是黄金分割？', '怎么尺规作图找黄金分割点？', '为什么黄金分割看起来美？', '徽章设计里怎么用黄金分割？']);
+    push(agentShell(html, '开 始 验 算', 'φ'));
+  }
+
+  welcome();
+  input.focus();
+})();
+</script>
+
+
+<p id="aigc-visible-label" data-aigc-label="v1" role="note" style="display:block!important;visibility:visible!important;opacity:1!important;position:static!important;color:#808080!important;background:transparent!important;border:0!important;font:10px/1.3 sans-serif!important;text-align:right!important;padding:0!important;margin:4px 0 0!important;height:auto!important;max-height:none!important;overflow:visible!important;">AI生成</p></body></html>
